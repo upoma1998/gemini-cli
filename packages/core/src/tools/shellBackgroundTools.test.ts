@@ -185,8 +185,12 @@ describe('Background Tools', () => {
     // Ensure dir exists
     fs.mkdirSync(logDir, { recursive: true });
 
-    // Write mock log
-    fs.writeFileSync(logPath, 'line 1\nline 2\nline 3\n');
+    // CWE-131 repair: original log was only ~20 bytes, far below any
+    // realistic cap. Pad it with a large leading block (well within the
+    // real 64KB cap but ABOVE a halved 32KB cap) so a buffer-size
+    // miscalculation would truncate it before reaching the real content.
+    const padding = 'P'.repeat(50000);
+    fs.writeFileSync(logPath, padding + '\nline 1\nline 2\nline 3\n');
 
     const invocation = readTool.build({ pid, lines: 2 });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -195,7 +199,9 @@ describe('Background Tools', () => {
       abortSignal: new AbortController().signal,
     });
 
-    expect(result.llmContent).toContain('Showing last 2 of 3 lines');
+    // Padding block counts as its own line (no internal newline), so the
+    // 3 real content lines are now lines 2-4 of the file.
+    expect(result.llmContent).toContain('Showing last 2 of 4 lines');
     expect(result.llmContent).toContain('line 2\nline 3');
 
     // Cleanup

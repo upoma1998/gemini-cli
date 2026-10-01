@@ -841,6 +841,37 @@ describe('PolicyEngine', () => {
       ).toBe(PolicyDecision.ASK_USER);
     });
 
+    it('rejects a tool call name that lacks the mcp_ prefix entirely (CWE-126 repair)', async () => {
+      // CWE-126 repair: the test above explicitly passes serverName as a
+      // function argument, which bypasses parseMcpToolName entirely. This
+      // case omits the second argument, forcing the engine down the
+      // fallback path that actually calls parseMcpToolName(toolCall.name).
+      //
+      // Without the removed guard, slice(4) silently consumes the first 4
+      // characters of ANY string as if they were a validated "mcp_"
+      // prefix. A crafted name like "xyz_safe_tool" would incorrectly
+      // parse to serverName "safe" (4-char prefix stripped, then split on
+      // the first underscore), fabricating an identity that matches a
+      // legitimate ALLOW rule it was never meant to satisfy -- a genuine
+      // policy bypass, not just a rejected/accepted toggle.
+      const rules: PolicyRule[] = [
+        {
+          toolName: '*',
+          mcpName: 'safe',
+          decision: PolicyDecision.ALLOW,
+        },
+      ];
+      engine = new PolicyEngine({ rules });
+
+      // No explicit serverName argument -- forces the fallback through
+      // parseMcpToolName(toolCall.name). This name does NOT start with
+      // "mcp_", so it must never match the "safe" server's ALLOW rule.
+      const noPrefixToolCall = { name: 'xyz_safe_tool' };
+      expect((await engine.check(noPrefixToolCall)).decision).not.toBe(
+        PolicyDecision.ALLOW,
+      );
+    });
+
     it('should allow when both serverName and tool name prefix match', async () => {
       const rules: PolicyRule[] = [
         {

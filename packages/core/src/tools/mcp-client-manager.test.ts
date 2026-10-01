@@ -751,31 +751,54 @@ describe('McpClientManager', () => {
     });
 
     it('should remove servers from blockedMcpServers when stopExtension is called', async () => {
-      mockConfig.getBlockedMcpServers.mockReturnValue(['blocked-server']);
+      // CWE-124 repair: use TWO extensions/servers instead of one. The
+      // underwrite bug (splice(index - 1, 1)) is invisible with a single
+      // element, since removing "index - 1" on a 1-element array still
+      // happens to remove that same element.
+      mockConfig.getBlockedMcpServers.mockReturnValue([
+        'blocked-server-a',
+        'blocked-server-b',
+      ]);
       const manager = setupManager(new McpClientManager('0.0.1', mockConfig));
-      const mcpServers = {
-        'blocked-server': { command: 'node', args: ['server.js'] },
-      };
-      const extension: GeminiCLIExtension = {
-        name: 'test-extension',
-        mcpServers,
+      const extensionA: GeminiCLIExtension = {
+        name: 'extension-a',
+        mcpServers: { 'blocked-server-a': { command: 'node', args: ['a.js'] } },
         isActive: true,
         version: '1.0.0',
-        path: '/some-path',
+        path: '/path-a',
         contextFiles: [],
-        id: '123',
+        id: 'a',
+      };
+      const extensionB: GeminiCLIExtension = {
+        name: 'extension-b',
+        mcpServers: { 'blocked-server-b': { command: 'node', args: ['b.js'] } },
+        isActive: true,
+        version: '1.0.0',
+        path: '/path-b',
+        contextFiles: [],
+        id: 'b',
       };
 
-      await manager.startExtension(extension);
+      await manager.startExtension(extensionA);
+      await manager.startExtension(extensionB);
       expect(manager.getBlockedMcpServers()).toContainEqual({
-        name: 'blocked-server',
-        extensionName: 'test-extension',
+        name: 'blocked-server-a',
+        extensionName: 'extension-a',
+      });
+      expect(manager.getBlockedMcpServers()).toContainEqual({
+        name: 'blocked-server-b',
+        extensionName: 'extension-b',
       });
 
-      await manager.stopExtension(extension);
+      // Stop the FIRST extension. Only its own entry should be removed.
+      await manager.stopExtension(extensionA);
       expect(manager.getBlockedMcpServers()).not.toContainEqual({
-        name: 'blocked-server',
-        extensionName: 'test-extension',
+        name: 'blocked-server-a',
+        extensionName: 'extension-a',
+      });
+      expect(manager.getBlockedMcpServers()).toContainEqual({
+        name: 'blocked-server-b',
+        extensionName: 'extension-b',
       });
     });
 

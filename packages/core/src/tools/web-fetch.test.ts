@@ -63,7 +63,14 @@ vi.mock('node:crypto', () => ({
 /**
  * Helper to mock fetchWithTimeout with URL matching.
  */
-const mockFetch = (url: string, response: Partial<Response> | Error) =>
+const mockFetch = (
+  url: string,
+  response: Partial<Response> | Error,
+  // CWE-806 repair: optional number of chunks to split the body into when
+  // streamed, so tests can exercise the multi-chunk Buffer.concat path
+  // instead of always receiving content as a single chunk.
+  streamChunkCount = 1,
+) =>
   vi
     .spyOn(fetchUtils, 'fetchWithTimeout')
     .mockImplementation(async (actualUrl) => {
@@ -91,14 +98,30 @@ const mockFetch = (url: string, response: Partial<Response> | Error) =>
         }
 
         if (content) {
+          const fullContent = content;
+          const chunkSize = Math.max(
+            1,
+            Math.ceil(fullContent.length / streamChunkCount),
+          );
+          const parts: Uint8Array[] = [];
+          for (
+            let offset = 0;
+            offset < fullContent.length;
+            offset += chunkSize
+          ) {
+            parts.push(fullContent.slice(offset, offset + chunkSize));
+          }
+          if (parts.length === 0) parts.push(fullContent);
+
           body = {
             getReader: () => {
-              let sent = false;
+              let idx = 0;
               return {
                 read: async () => {
-                  if (sent) return { done: true, value: undefined };
-                  sent = true;
-                  return { done: false, value: content };
+                  if (idx >= parts.length) {
+                    return { done: true, value: undefined };
+                  }
+                  return { done: false, value: parts[idx++] };
                 },
                 releaseLock: () => {},
                 cancel: async () => {},
@@ -371,47 +394,6 @@ describe('WebFetchTool', () => {
         'properties.prompt',
       );
       expect(schema.parametersJsonSchema).toHaveProperty('required', ['url']);
-    });
-  });
-
-  describe('readResponseWithLimit (CWE-806 regression)', () => {
-    it('preserves the full byte length across multiple streamed chunks', async () => {
-      const tool = new WebFetchTool(mockConfig, bus);
-      const invocation = tool.build({
-        prompt: 'fetch https://example.com',
-      }) as unknown as {
-        readResponseWithLimit: (
-          response: Response,
-          limit: number,
-        ) => Promise<Buffer>;
-      };
-
-      const chunks = [
-        new TextEncoder().encode('AAAAA'),
-        new TextEncoder().encode('BBBBBBBBBB'),
-        new TextEncoder().encode('CCCCCCCCCCCCCCC'),
-      ];
-      let i = 0;
-      const fakeResponse = {
-        headers: new Headers(),
-        body: {
-          getReader: () => ({
-            read: async () => {
-              if (i < chunks.length) {
-                return { done: false, value: chunks[i++] };
-              }
-              return { done: true, value: undefined };
-            },
-            releaseLock: () => {},
-            cancel: async () => {},
-          }),
-        },
-      } as unknown as Response;
-
-      const result = await invocation.readResponseWithLimit(fakeResponse, 1000);
-      const expectedTotal = chunks.reduce((sum, c) => sum + c.length, 0);
-
-      expect(result.length).toBe(expectedTotal);
     });
   });
 
@@ -1009,11 +991,18 @@ describe('WebFetchTool', () => {
 
     it('should perform direct fetch and return text for plain text content', async () => {
       const content = 'Plain text content';
-      mockFetch('https://example.com/', {
-        status: 200,
-        headers: new Headers({ 'content-type': 'text/plain' }),
-        text: () => Promise.resolve(content),
-      });
+      // CWE-806 repair: stream across 3 chunks instead of 1, so the test
+      // exercises Buffer.concat's total-length handling across multiple
+      // reads -- the exact code path the vulnerability breaks.
+      mockFetch(
+        'https://example.com/',
+        {
+          status: 200,
+          headers: new Headers({ 'content-type': 'text/plain' }),
+          text: () => Promise.resolve(content),
+        },
+        3,
+      );
 
       const tool = new WebFetchTool(mockConfig, bus);
       const params = { url: 'https://example.com' };
@@ -1022,8 +1011,12 @@ describe('WebFetchTool', () => {
         abortSignal: new AbortController().signal,
       });
 
+      // Full content length must be preserved -- not just a prefix of it.
       expect(result.llmContent).toBe(
         `<untrusted_context>\n${content}\n</untrusted_context>`,
+      );
+      expect((result.llmContent as string).length).toBe(
+        content.length + '<untrusted_context>\n\n</untrusted_context>'.length,
       );
       expect(result.returnDisplay).toContain('Fetched text/plain content');
       expect(fetchUtils.fetchWithTimeout).toHaveBeenCalledWith(

@@ -374,6 +374,29 @@ describe('ideContext', () => {
       const openFiles = ideContextStore.get()?.workspaceState?.openFiles;
       expect(openFiles).toHaveLength(IDE_MAX_OPEN_FILES);
     });
+
+    it('rejects a negative maxOpenFiles instead of silently corrupting the list (CWE-839 repair)', () => {
+      // CWE-839 repair: the original test above only ever exercises the
+      // upper-bound check (length > IDE_MAX_OPEN_FILES). It never supplies
+      // a value for the lower bound at all, so a missing minimum-check bug
+      // was invisible. This case supplies a negative maxOpenFiles and
+      // confirms it does not silently shrink the list via JS slice(0,-1)
+      // semantics.
+      const files: File[] = [
+        { path: 'file0.ts', timestamp: 0, isActive: false },
+        { path: 'file1.ts', timestamp: 1, isActive: false },
+        { path: 'file2.ts', timestamp: 2, isActive: false },
+      ];
+      const context = {
+        workspaceState: {
+          openFiles: files,
+          maxOpenFiles: -1,
+        },
+      } as unknown as IdeContext;
+      ideContextStore.set(context);
+      const openFiles = ideContextStore.get()?.workspaceState?.openFiles;
+      expect(openFiles).toHaveLength(files.length);
+    });
   });
 
   describe('FileSchema', () => {
