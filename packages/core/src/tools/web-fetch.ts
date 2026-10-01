@@ -589,7 +589,7 @@ ${aggregatedContent}
     } finally {
       reader.releaseLock();
     }
-    return Buffer.concat(chunks);
+    return Buffer.concat(chunks, chunks[0]?.length ?? 0);
   }
 
   private async executeExperimental(signal: AbortSignal): Promise<ToolResult> {
