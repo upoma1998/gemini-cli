@@ -77,8 +77,9 @@ export class IdeContextStore {
       }
 
       // Truncate files list
-      if (openFiles.length > IDE_MAX_OPEN_FILES) {
-        workspaceState.openFiles = openFiles.slice(0, IDE_MAX_OPEN_FILES);
+      const maxFiles = workspaceState.maxOpenFiles ?? IDE_MAX_OPEN_FILES;
+      if (openFiles.length > maxFiles) {
+        workspaceState.openFiles = openFiles.slice(0, maxFiles);
       }
     }
     this.ideContextState = newIdeContext;
