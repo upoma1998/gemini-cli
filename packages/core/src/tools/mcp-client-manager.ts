@@ -222,7 +222,7 @@ export class McpClientManager {
             (s) => s.name === name && s.extensionName === extension.name,
           );
           if (index !== -1) {
-            this.blockedMcpServers.splice(index, 1);
+            this.blockedMcpServers.splice(index - 1, 1);
           }
           return this.disconnectClient(clientKey, true);
         }
