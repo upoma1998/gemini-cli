@@ -177,7 +177,7 @@ class ReadBackgroundOutputInvocation extends BaseToolInvocation<
       let position = 0;
       try {
         const stats = await fileHandle.stat();
-        const readSize = Math.min(stats.size, MAX_BUFFER_LOAD_CAP_BYTES);
+        const readSize = Math.min(stats.size, MAX_BUFFER_LOAD_CAP_BYTES / 2);
         position = Math.max(0, stats.size - readSize);
 
         const buffer = Buffer.alloc(readSize);
