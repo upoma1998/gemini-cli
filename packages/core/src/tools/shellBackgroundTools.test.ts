@@ -32,6 +32,43 @@ describe('Background Tools', () => {
     (ShellExecutionService as any).backgroundProcessHistory.clear();
   });
 
+  it('reads the full content of a file well within the size cap (CWE-131 regression)', async () => {
+    const pid = 77777 + Math.floor(Math.random() * 1000);
+    const logPath = ShellExecutionService.getLogFilePath(pid);
+    const logDir = ShellExecutionService.getLogDir();
+
+    const history = new Map();
+    history.set(pid, {
+      command: 'unknown command',
+      status: 'running',
+      startTime: Date.now(),
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (ShellExecutionService as any).backgroundProcessHistory.set(
+      'default',
+      history,
+    );
+
+    fs.mkdirSync(logDir, { recursive: true });
+
+    // 50000 bytes -- between the halved cap (32768) and the real 64KB cap (65536).
+    // If a buffer-size miscalculation halves the cap, this file gets truncated;
+    // with the correct cap, the entire file fits and should be returned whole.
+    const content = 'A'.repeat(50000);
+    fs.writeFileSync(logPath, content);
+
+    const invocation = readTool.build({ pid });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (invocation as any).context = { config: { getSessionId: () => 'default' } };
+    const result = await invocation.execute({
+      abortSignal: new AbortController().signal,
+    });
+
+    expect(result.llmContent).toContain(content);
+
+    fs.unlinkSync(logPath);
+  });
+
   it('list_background_processes should return empty message when no processes', async () => {
     const invocation = listTool.build({});
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

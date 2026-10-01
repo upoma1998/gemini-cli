@@ -1,0 +1,8 @@
+Script started on Thu Oct  1 00:40:07 2026
+[1m[7m%[27m[1m[0m                                                                                             [0m[27m[24m[Jupoma@Mac-425 gemini-cli % [K[?2004h[7mcd ~/Desktop/bug-repro/bugrepro/repos/gemini-cli[27m
+[7mgit branch -a | grep -v upstream[27m[K[A[27mc[27md[27m [27m~[27m/[27mD[27me[27ms[27mk[27mt[27mo[27mp[27m/[27mb[27mu[27mg[27m-[27mr[27me[27mp[27mr[27mo[27m/[27mb[27mu[27mg[27mr[27me[27mp[27mr[27mo[27m/[27mr[27me[27mp[27mo[27ms[27m/[27mg[27me[27mm[27mi[27mn[27mi[27m-[27mc[27ml[27mi[1B[27mg[27mi[27mt[27m [27mb[27mr[27ma[27mn[27mc[27mh[27m [27m-[27ma[27m [27m|[27m [27mg[27mr[27me[27mp[27m [27m-[27mv[27m [27mu[27mp[27ms[27mt[27mr[27me[27ma[27mm[?2004l
+* main
+  remotes/origin/main
+[1m[7m%[27m[1m[0m                                                                                             [0m[27m[24m[Jupoma@Mac-425 gemini-cli % [K[?2004h[7mexit[27m[27me[27mx[27mi[27mt[?2004l
+
+Script done on Thu Oct  1 00:40:18 2026

@@ -699,6 +699,57 @@ describe('McpClientManager', () => {
       expect(lastCall[1].extension).toBe(extension1);
     });
 
+    it('removes the correct server when multiple are blocked (CWE-124 regression)', async () => {
+      mockConfig.getBlockedMcpServers.mockReturnValue([
+        'blocked-server-a',
+        'blocked-server-b',
+      ]);
+      const manager = setupManager(new McpClientManager('0.0.1', mockConfig));
+
+      const extensionA: GeminiCLIExtension = {
+        name: 'extension-a',
+        mcpServers: { 'blocked-server-a': { command: 'node', args: ['a.js'] } },
+        isActive: true,
+        version: '1.0.0',
+        path: '/path-a',
+        contextFiles: [],
+        id: 'a',
+      };
+      const extensionB: GeminiCLIExtension = {
+        name: 'extension-b',
+        mcpServers: { 'blocked-server-b': { command: 'node', args: ['b.js'] } },
+        isActive: true,
+        version: '1.0.0',
+        path: '/path-b',
+        contextFiles: [],
+        id: 'b',
+      };
+
+      await manager.startExtension(extensionA);
+      await manager.startExtension(extensionB);
+
+      expect(manager.getBlockedMcpServers()).toContainEqual({
+        name: 'blocked-server-a',
+        extensionName: 'extension-a',
+      });
+      expect(manager.getBlockedMcpServers()).toContainEqual({
+        name: 'blocked-server-b',
+        extensionName: 'extension-b',
+      });
+
+      // Stop extension-a (the FIRST one added, index 0). Only its entry should be removed.
+      await manager.stopExtension(extensionA);
+
+      expect(manager.getBlockedMcpServers()).not.toContainEqual({
+        name: 'blocked-server-a',
+        extensionName: 'extension-a',
+      });
+      expect(manager.getBlockedMcpServers()).toContainEqual({
+        name: 'blocked-server-b',
+        extensionName: 'extension-b',
+      });
+    });
+
     it('should remove servers from blockedMcpServers when stopExtension is called', async () => {
       mockConfig.getBlockedMcpServers.mockReturnValue(['blocked-server']);
       const manager = setupManager(new McpClientManager('0.0.1', mockConfig));

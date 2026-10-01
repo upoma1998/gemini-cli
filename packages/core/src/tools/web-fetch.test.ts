@@ -374,6 +374,47 @@ describe('WebFetchTool', () => {
     });
   });
 
+  describe('readResponseWithLimit (CWE-806 regression)', () => {
+    it('preserves the full byte length across multiple streamed chunks', async () => {
+      const tool = new WebFetchTool(mockConfig, bus);
+      const invocation = tool.build({
+        prompt: 'fetch https://example.com',
+      }) as unknown as {
+        readResponseWithLimit: (
+          response: Response,
+          limit: number,
+        ) => Promise<Buffer>;
+      };
+
+      const chunks = [
+        new TextEncoder().encode('AAAAA'),
+        new TextEncoder().encode('BBBBBBBBBB'),
+        new TextEncoder().encode('CCCCCCCCCCCCCCC'),
+      ];
+      let i = 0;
+      const fakeResponse = {
+        headers: new Headers(),
+        body: {
+          getReader: () => ({
+            read: async () => {
+              if (i < chunks.length) {
+                return { done: false, value: chunks[i++] };
+              }
+              return { done: true, value: undefined };
+            },
+            releaseLock: () => {},
+            cancel: async () => {},
+          }),
+        },
+      } as unknown as Response;
+
+      const result = await invocation.readResponseWithLimit(fakeResponse, 1000);
+      const expectedTotal = chunks.reduce((sum, c) => sum + c.length, 0);
+
+      expect(result.length).toBe(expectedTotal);
+    });
+  });
+
   describe('execute', () => {
     it('should return WEB_FETCH_PROCESSING_ERROR on rate limit exceeded', async () => {
       vi.spyOn(fetchUtils, 'isPrivateIp').mockResolvedValue(false);

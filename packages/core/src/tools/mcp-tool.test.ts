@@ -19,6 +19,7 @@ import {
   DiscoveredMCPTool,
   generateValidName,
   formatMcpToolName,
+  parseMcpToolName,
 } from './mcp-tool.js'; // Added getStringifiedResultForDisplay
 import { ToolConfirmationOutcome, type ToolResult } from './tools.js';
 import type { CallableTool, Part } from '@google/genai';
@@ -1139,6 +1140,23 @@ describe('DiscoveredMCPTool', () => {
 });
 
 describe('MCP Tool Naming Regression Fixes', () => {
+  describe('parseMcpToolName (CWE-126 regression)', () => {
+    it('rejects a name that does not start with the required mcp_ prefix', () => {
+      const result = parseMcpToolName('xyz_server_tool');
+      expect(result).toEqual({});
+    });
+
+    it('rejects a name shorter than the prefix itself', () => {
+      const result = parseMcpToolName('ab');
+      expect(result).toEqual({});
+    });
+
+    it('still correctly parses a valid mcp_ prefixed name', () => {
+      const result = parseMcpToolName('mcp_myserver_mytool');
+      expect(result).toEqual({ serverName: 'myserver', toolName: 'mytool' });
+    });
+  });
+
   describe('generateValidName', () => {
     it('should replace spaces with underscores', () => {
       expect(generateValidName('My Tool')).toBe('mcp_My_Tool');

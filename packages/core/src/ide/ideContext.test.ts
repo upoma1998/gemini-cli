@@ -334,6 +334,28 @@ describe('ideContext', () => {
       expect(selectedText).toBe(shortText);
     });
 
+    it('rejects a negative maxOpenFiles instead of silently corrupting the list (CWE-839 regression)', () => {
+      const files: File[] = [
+        { path: 'file0.ts', timestamp: 0, isActive: false },
+        { path: 'file1.ts', timestamp: 1, isActive: false },
+        { path: 'file2.ts', timestamp: 2, isActive: false },
+      ];
+      const context = {
+        workspaceState: {
+          openFiles: files,
+          maxOpenFiles: -1,
+        },
+      } as unknown as IdeContext;
+
+      ideContextStore.set(context);
+      const openFiles = ideContextStore.get()?.workspaceState?.openFiles;
+
+      // A negative bound must never silently shrink the list -- the correct
+      // behavior is to ignore the invalid value and keep all files (or reject
+      // it outright), never to apply JS's negative-slice semantics.
+      expect(openFiles).toHaveLength(files.length);
+    });
+
     it('should truncate the openFiles list if it exceeds the max length', () => {
       const files: File[] = Array.from(
         { length: IDE_MAX_OPEN_FILES + 5 },
