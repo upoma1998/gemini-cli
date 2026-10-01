@@ -55,9 +55,6 @@ export function parseMcpToolName(name: string): {
   serverName?: string;
   toolName?: string;
 } {
-  if (!isMcpToolName(name)) {
-    return {};
-  }
   // Remove the prefix
   const withoutPrefix = name.slice(MCP_TOOL_PREFIX.length);
   // The first segment is the server name, the rest is the tool name
